@@ -201,15 +201,15 @@ const SHEET_CSV_URL =
 
 // Auth strategy for the browser WebSocket. The Voice Agent API browser pattern
 // is a short-lived temp token passed as ?token=. How that token is obtained:
-//   "proxy"        (most robust): fetch it from a same-origin local endpoint
-//                  served by server.mjs. Key stays server-side, no CORS.
-//                  Run:  ASSEMBLYAI_API_KEY=<key> node server.mjs
-//   "browser-mint" (works with `npx serve`, no server): the page mints the
-//                  token itself via GET /v1/token using ASSEMBLYAI_API_KEY.
-//                  Fails if the token endpoint doesn't allow browser CORS.
-//   "raw-key"      (last resort): pass the raw API key as ?token=. Undocumented
-//                  for this API; usually rejected with close code 1006.
-const AUTH_MODE = "browser-mint";
+//   "proxy"  (DEFAULT, most robust): fetch it from a same-origin local endpoint
+//            served by server.mjs. Key stays server-side, no CORS.
+//            Run:  ASSEMBLYAI_API_KEY=<key> node server.mjs
+//   "browser-mint" (for plain `npx serve`, no server): the page mints the token
+//            itself via GET /v1/token using ASSEMBLYAI_API_KEY (set above).
+//            Fails if the token endpoint doesn't allow browser CORS.
+//   "raw-key" (last resort): pass the raw API key as ?token=. Undocumented for
+//            this API; usually rejected with close code 1006.
+const AUTH_MODE = "proxy";
 const TOKEN_PROXY_URL = "/token"; // used only when AUTH_MODE === "proxy"
 
 // AssemblyAI Voice Agent API endpoints (US edge). For EU residency swap to
