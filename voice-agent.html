@@ -623,16 +623,23 @@ function stopMic() {
   workletNode = micSourceNode = micStream = null;
 }
 
+// ~140 ms jitter buffer: schedule agent audio slightly ahead of the clock so
+// network timing wobble doesn't leave gaps between chunks (the crackle/popping).
+const PLAY_LEAD = 0.14;
+
 function playChunk(int16) {
+  if (!audioCtx || !outGain) return;
   const f32 = new Float32Array(int16.length);
-  for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 0x8000;
+  for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 32768;
   const buf = audioCtx.createBuffer(1, f32.length, SAMPLE_RATE);
   buf.copyToChannel(f32, 0);
   const src = audioCtx.createBufferSource();
   src.buffer = buf;
   src.connect(outGain);
   const now = audioCtx.currentTime;
-  if (playHead < now) playHead = now + 0.02;
+  // Schedule contiguously off playHead. Only re-seat (with a lead) on a real
+  // underrun, so consecutive chunks butt up seamlessly with no clicks.
+  if (playHead < now + 0.01) playHead = now + PLAY_LEAD;
   src.start(playHead);
   playHead += buf.duration;
   activeSources.add(src);
@@ -640,13 +647,11 @@ function playChunk(int16) {
 }
 
 // Barge-in flush: drop queued agent audio so the user never hears stale speech.
+// Keep outGain in place — recreating it mid-stream caused audible clicks.
 function flushPlayback() {
   for (const s of activeSources) { try { s.stop(); } catch (e) {} }
   activeSources.clear();
   playHead = 0;
-  if (outGain) { try { outGain.disconnect(); } catch (e) {} }
-  outGain = audioCtx.createGain();
-  outGain.connect(audioCtx.destination);
 }
 
 /* ============================================================================
@@ -709,15 +714,11 @@ async function connect() {
     outGain = audioCtx.createGain();
     outGain.connect(audioCtx.destination);
 
-    // Ask for the microphone up front so the browser prompts you immediately.
-    // Audio isn't actually sent until the session is ready (sendAudio gates on
-    // sessionReady), but capturing now rules out any mic-permission confusion.
-    dbg("Requesting microphone… (allow the popup)");
-    await startMic();
-    dbg("Microphone granted ✓");
-
-    const token = await getAuthToken();
-    dbg("Opening WebSocket to Voice Agent API…");
+    // Acquire the mic AND mint the token at the same time to cut startup time.
+    // (Audio isn't sent until the session is ready — sendAudio gates on it.)
+    dbg("Requesting microphone + token…");
+    const [, token] = await Promise.all([startMic(), getAuthToken()]);
+    dbg("Microphone + token ready ✓ — opening WebSocket");
     ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
     ws.binaryType = "arraybuffer";
     ws.onopen = onWsOpen;
