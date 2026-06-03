@@ -123,13 +123,6 @@
   .line .who { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); display: block; margin-bottom: 3px; }
   .line.partial { opacity: .6; font-style: italic; }
   .empty { color: var(--muted); font-size: 13px; margin: auto; text-align: center; }
-
-  /* Diagnostics panel */
-  .diag { margin-top: 22px; background: rgba(0,0,0,.28); border: 1px solid var(--edge); border-radius: 14px; overflow: hidden; }
-  .diag-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--edge); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
-  .diag-head button { font: inherit; font-size: 11px; text-transform: none; letter-spacing: 0; color: var(--ink); background: var(--card); border: 1px solid var(--edge); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
-  .diag-head button:hover { background: rgba(255,255,255,.08); }
-  #diaglog { margin: 0; padding: 12px 14px; max-height: 220px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.55; color: #c7d4f0; white-space: pre-wrap; word-break: break-word; }
 </style>
 </head>
 <body>
@@ -165,11 +158,6 @@
       <div class="convo-head"><h2>Conversation</h2><span class="live-tag">Live transcript</span></div>
       <div id="transcript"><div class="empty">Your conversation with Ava will appear here…</div></div>
     </section>
-  </div>
-
-  <div class="diag">
-    <div class="diag-head"><span>Diagnostics</span><button id="copyDiag" type="button">Copy</button></div>
-    <pre id="diaglog">Click “Start call” to begin. Steps will appear here.</pre>
   </div>
 </main>
 
