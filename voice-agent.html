@@ -666,10 +666,11 @@ function onWsOpen() {
         format: { encoding: "audio/pcm" },   // PCM16 24 kHz
         keyterms: keyterms,                   // boost the real artist names
         turn_detection: {
-          vad_threshold: 0.5,
-          min_silence: 400,
-          max_silence: 1280,
-          interrupt_response: true,           // allow barge-in
+          // Tuned for noisy rooms:
+          vad_threshold: 0.6,     // higher = needs more confident speech (ignores background noise)
+          min_silence: 800,       // wait longer before ending a turn (fewer premature cut-offs)
+          max_silence: 2400,      // hard cap before forcing end-of-turn
+          interrupt_response: true, // barge-in; set false if noise keeps interrupting the agent
         },
       },
       output: {
