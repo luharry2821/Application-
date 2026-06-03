@@ -28,23 +28,11 @@
     min-height: 100vh;
   }
   header {
-    padding: 22px 28px 10px;
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    flex-wrap: wrap;
+    padding: 20px 28px 4px;
+    text-align: center;
   }
-  header h1 { margin: 0; font-size: 24px; letter-spacing: 0.3px; }
-  header .sub { color: var(--muted); font-size: 14px; }
-  main { padding: 8px 28px 40px; }
-
-  .bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin: 8px 0 18px;
-  }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: 0.4px; font-weight: 700; }
+  main { padding: 8px 24px 48px; max-width: 1040px; margin: 0 auto; }
   button {
     font: inherit;
     border: 1px solid var(--edge);
@@ -85,61 +73,59 @@
     font-size: 14px;
   }
 
-  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 22px; }
-  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
-
-  .shelf {
+  .stage {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 16px;
+    grid-template-columns: 1fr 340px;
+    gap: 28px;
+    align-items: start;
   }
-  .sleeve {
-    position: relative;
-    border-radius: 12px;
-    padding: 14px;
-    min-height: 150px;
-    color: #fff;
-    border: 2px solid transparent;
+  @media (max-width: 860px) { .stage { grid-template-columns: 1fr; } }
+
+  .centerpiece {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
-    box-shadow: 0 6px 18px rgba(0,0,0,.35);
-    overflow: hidden;
-    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    align-items: center;
+    text-align: center;
+    gap: 22px;
+    padding: 26px 10px 10px;
   }
-  .sleeve::before {
-    /* faux record peeking out */
-    content: "";
-    position: absolute;
-    right: -42px; top: 50%;
-    transform: translateY(-50%);
-    width: 96px; height: 96px;
+  .nowtag {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* The record */
+  .disc {
+    position: relative;
+    width: 300px; height: 300px;
     border-radius: 50%;
-    background: repeating-radial-gradient(circle at center, #111 0 2px, #1c1c1c 2px 4px);
-    box-shadow: inset 0 0 0 22px rgba(0,0,0,.25);
-    opacity: .55;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 24px 55px rgba(0,0,0,.55), inset 0 0 70px rgba(0,0,0,.7);
+    transition: transform .5s ease;
   }
-  .sleeve .meta { position: relative; z-index: 1; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
-  .sleeve .artist { font-weight: 700; font-size: 15px; }
-  .sleeve .title { font-size: 13px; opacity: .92; }
-  .sleeve .genre { margin-top: 6px; font-size: 11px; letter-spacing: .4px; text-transform: uppercase; opacity: .8; }
-  .sleeve .vibes { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
-  .sleeve .vibe {
-    font-size: 10px; padding: 2px 7px; border-radius: 999px;
-    background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.18);
+  .disc .grooves {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: repeating-radial-gradient(circle at center, #0b0b0d 0 1px, #1b1b20 1px 3px);
   }
-  .sleeve.matched {
-    border-color: var(--accent);
-    transform: translateY(-6px) scale(1.03);
-    box-shadow: 0 14px 30px rgba(255,207,92,.35), 0 0 0 3px rgba(255,207,92,.25);
+  .disc.spinning .grooves { animation: spin 3.2s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .disc.pulse { animation: pulse .5s ease; }
+  @keyframes pulse { 0% { transform: scale(1); } 35% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+  .label {
+    position: relative; z-index: 1;
+    width: 150px; height: 150px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 14px; color: #fff; overflow: hidden;
+    box-shadow: 0 0 0 7px rgba(0,0,0,.4), inset 0 0 22px rgba(0,0,0,.3);
   }
-  .sleeve.matched::after {
-    content: "▶ now spinning";
-    position: absolute; top: 10px; left: 12px; z-index: 2;
-    font-size: 10px; font-weight: 700; letter-spacing: .5px;
-    color: #2a1d00; background: var(--accent);
-    padding: 2px 7px; border-radius: 999px;
-  }
+  .label .artist { font-weight: 800; font-size: 15px; line-height: 1.15; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+  .label .title  { font-size: 11px; opacity: .92; margin-top: 4px; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+
+  .prompt { margin: 0; font-size: 22px; font-weight: 600; line-height: 1.3; max-width: 440px; }
+  .controls { display: flex; gap: 10px; }
+  button.big { padding: 13px 28px; font-size: 16px; border-radius: 999px; }
+  .hidden { display: none !important; }
 
   aside {
     background: var(--panel);
@@ -163,23 +149,32 @@
 <body>
 <header>
   <h1>🎚️ Vinyl Concierge</h1>
-  <span class="sub">Ask out loud for a mood, a genre, or an artist — I'll pull the record off the shelf.</span>
 </header>
 
 <main>
   <div id="error"></div>
 
-  <div class="bar">
-    <button id="connectBtn" class="primary" disabled>Loading shelf…</button>
-    <button id="disconnectBtn" disabled>Disconnect</button>
-    <span class="status"><span id="dot" class="dot"></span><span id="statusText">Loading inventory…</span></span>
-  </div>
+  <div class="stage">
+    <section class="centerpiece">
+      <div class="nowtag" id="nowtag">Featured</div>
+      <div class="disc" id="disc">
+        <div class="grooves"></div>
+        <div class="label" id="discLabel">
+          <div class="artist">—</div>
+          <div class="title"></div>
+        </div>
+      </div>
+      <h2 class="prompt" id="prompt">What are you in the mood for?</h2>
+      <div class="controls">
+        <button id="connectBtn" class="primary big" disabled>Loading…</button>
+        <button id="disconnectBtn" class="big hidden">Stop</button>
+      </div>
+      <span class="status"><span id="dot" class="dot"></span><span id="statusText">Loading…</span></span>
+    </section>
 
-  <div class="layout">
-    <section class="shelf" id="shelf" aria-label="Record shelf"></section>
     <aside>
       <h2>Conversation</h2>
-      <div id="transcript"><div class="empty">Connect and start talking…</div></div>
+      <div id="transcript"><div class="empty">Press “Start talking” and say what you’re into…</div></div>
     </aside>
   </div>
 </main>
@@ -244,7 +239,10 @@ const connectBtn = $("connectBtn");
 const disconnectBtn = $("disconnectBtn");
 const statusText = $("statusText");
 const dot = $("dot");
-const shelfEl = $("shelf");
+const discEl = $("disc");
+const discLabel = $("discLabel");
+const promptEl = $("prompt");
+const nowtag = $("nowtag");
 const transcriptEl = $("transcript");
 const errorEl = $("error");
 
@@ -278,27 +276,33 @@ function gradientFor(name) {
   return `linear-gradient(135deg, hsl(${h1} 62% 46%), hsl(${h2} 58% 26%))`;
 }
 
-function renderShelf() {
-  shelfEl.innerHTML = "";
-  records.forEach((r, idx) => {
-    const card = document.createElement("div");
-    card.className = "sleeve";
-    card.style.background = gradientFor(r.artist);
-    card.dataset.index = String(idx);
+// Show a single record on the center disc. `tag` updates the small caption
+// above it (e.g. "Featured" or "Now spinning").
+let currentIdx = -1;
+function showCenterRecord(idx, tag) {
+  if (idx < 0 || !records[idx]) return;
+  currentIdx = idx;
+  const r = records[idx];
+  discLabel.style.background = gradientFor(r.artist);
+  discLabel.querySelector(".artist").textContent = r.artist || "";
+  discLabel.querySelector(".title").textContent = r.title || "";
+  if (tag) nowtag.textContent = tag;
+}
 
-    const vibes = r.vibe
-      .map((v) => `<span class="vibe">${escapeHtml(v)}</span>`)
-      .join("");
+function pulseDisc() {
+  discEl.classList.remove("pulse");
+  void discEl.offsetWidth; // restart the animation
+  discEl.classList.add("pulse");
+}
 
-    card.innerHTML = `
-      <div class="meta">
-        <div class="artist">${escapeHtml(r.artist)}</div>
-        <div class="title">${escapeHtml(r.title)}</div>
-        ${r.genre ? `<div class="genre">${escapeHtml(r.genre)}</div>` : ""}
-        ${vibes ? `<div class="vibes">${vibes}</div>` : ""}
-      </div>`;
-    shelfEl.appendChild(card);
-  });
+// Toggle the connected/listening look.
+function setLiveUI(live) {
+  discEl.classList.toggle("spinning", live);
+  connectBtn.classList.toggle("hidden", live);
+  disconnectBtn.classList.toggle("hidden", !live);
+  promptEl.textContent = live
+    ? "Listening… tell me a vibe, a genre, or an artist."
+    : "What are you in the mood for?";
 }
 
 function escapeHtml(s) {
@@ -371,7 +375,10 @@ function searchShelf(args) {
   });
   scored.sort((a, b) => b.score - a.score);
 
-  highlightRecord(scored.length ? scored[0].idx : -1);
+  if (scored.length) {
+    showCenterRecord(scored[0].idx, "Now spinning");
+    pulseDisc();
+  }
 
   const matches = scored.slice(0, 3).map((s) => ({
     artist: s.r.artist,
@@ -384,12 +391,6 @@ function searchShelf(args) {
   return matches.length
     ? { matches, message: `Found ${matches.length} match(es).` }
     : { matches: [], message: "No record on the shelf matched that." };
-}
-
-function highlightRecord(idx) {
-  [...shelfEl.children].forEach((el) => {
-    el.classList.toggle("matched", Number(el.dataset.index) === idx);
-  });
 }
 
 /* ============================================================================
@@ -613,6 +614,7 @@ async function connect() {
   }
 
   connectBtn.disabled = true;
+  connectBtn.textContent = "Connecting…";
   setStatus("Connecting…", "");
 
   try {
@@ -637,6 +639,7 @@ async function connect() {
     showError("Could not connect: " + err.message);
     setStatus("Disconnected", "err");
     connectBtn.disabled = false;
+    connectBtn.textContent = "Start talking";
     teardownAudio();
   }
 }
@@ -677,7 +680,6 @@ function onWsOpen() {
     },
   }));
 
-  disconnectBtn.disabled = false;
   setStatus("Session starting…", "");
 }
 
@@ -689,7 +691,8 @@ async function onWsMessage(evt) {
     case "session.ready":
       sessionReady = true;
       sessionId = msg.session_id || sessionId;
-      setStatus("Live — start talking", "live");
+      setLiveUI(true);
+      setStatus("Live — go ahead", "live");
       try {
         await startMic(); // only stream audio AFTER session.ready
       } catch (err) {
@@ -762,8 +765,9 @@ async function onWsMessage(evt) {
 
 function onWsClose(evt) {
   sessionReady = false;
-  disconnectBtn.disabled = true;
+  setLiveUI(false);
   connectBtn.disabled = false;
+  connectBtn.textContent = "Start talking";
   teardownAudio();
   if (evt && evt.code === 1006) {
     setStatus("Closed (1006)", "err");
@@ -863,14 +867,14 @@ disconnectBtn.addEventListener("click", disconnect);
 (async function init() {
   try {
     records = await loadInventory();
-    renderShelf();
+    showCenterRecord(Math.floor(Math.random() * records.length), "Featured");
     clearError();
     connectBtn.disabled = false;
-    connectBtn.textContent = "Connect & talk";
-    setStatus(`Shelf loaded — ${records.length} records`, "");
+    connectBtn.textContent = "Start talking";
+    setStatus(`Ready — ${records.length} records on the shelf`, "");
   } catch (err) {
     connectBtn.disabled = true;            // never connect without inventory
-    connectBtn.textContent = "Shelf unavailable";
+    connectBtn.textContent = "Unavailable";
     setStatus("Inventory failed to load", "err");
     showError(
       "Couldn't load the record shelf from the Google Sheet: " +
