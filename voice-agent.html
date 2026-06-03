@@ -651,6 +651,7 @@ async function getAuthToken() {
   }
   const data = await res.json();
   if (!data.token) throw new Error("Token endpoint returned no token.");
+  console.log("[AVA] token minted OK");   // DEBUG
   return data.token;
 }
 
@@ -682,6 +683,7 @@ async function connect() {
 }
 
 function onWsOpen() {
+  console.log("[AVA] WebSocket open -> sending session.update");   // DEBUG
   // Configure the session immediately; don't wait for session.ready.
   ws.send(JSON.stringify({
     type: "session.update",
@@ -712,6 +714,8 @@ async function onWsMessage(evt) {
   let msg;
   try { msg = JSON.parse(evt.data); } catch (e) { return; }
 
+  console.log("[AVA] event:", msg.type, msg);   // DEBUG: every server event
+
   switch (msg.type) {
     case "session.ready":
       sessionReady = true;
@@ -720,8 +724,8 @@ async function onWsMessage(evt) {
       setStatus("Live — go ahead", "live");
       connectBtn.disabled = false;
       connectBtn.textContent = "Start call";
-      try { await startMic(); }
-      catch (err) { showError("Microphone error: " + err.message); setStatus("No mic", "err"); }
+      try { await startMic(); console.log("[AVA] mic started -> streaming audio"); }
+      catch (err) { console.error("[AVA] mic error:", err); showError("Microphone error: " + err.message); setStatus("No mic", "err"); }
       break;
 
     case "input.speech.started":
@@ -800,6 +804,7 @@ async function handleToolCall(msg) {
 }
 
 function onWsClose(evt) {
+  console.log("[AVA] WebSocket closed. code:", evt && evt.code, "reason:", evt && evt.reason);   // DEBUG
   sessionReady = false;
   setLiveUI(false);
   connectBtn.disabled = false;
