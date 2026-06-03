@@ -189,10 +189,12 @@
  * CONFIG  — edit these two before running.
  * ==========================================================================*/
 
-// Paste the AssemblyAI API key you created at
-// https://www.assemblyai.com/dashboard/api-keys
-// NOTE: intentionally left as a placeholder so a real key is never committed
-// to git. This file is LOCAL-DEV ONLY — the key is exposed to the browser.
+// Your AssemblyAI key (https://www.assemblyai.com/dashboard/api-keys).
+// Left as a placeholder so a real key is never committed to git.
+// In the recommended "proxy" auth mode (see AUTH_MODE) the key lives ONLY in
+// the server (server.mjs, via the ASSEMBLYAI_API_KEY env var) and you can
+// leave this placeholder untouched. It is only read here for the
+// "browser-mint" / "raw-key" modes, which expose it to the browser.
 const ASSEMBLYAI_API_KEY = "YOUR_ASSEMBLYAI_API_KEY";
 
 // Published / link-viewable Google Sheet, as a CSV export.
@@ -202,13 +204,18 @@ const ASSEMBLYAI_API_KEY = "YOUR_ASSEMBLYAI_API_KEY";
 const SHEET_CSV_URL =
   "https://docs.google.com/spreadsheets/d/1MsFwPUVRusLIYbbU7JCSqmAvGKtUQkYpbnIKwaqGx1s/export?format=csv";
 
-// Auth strategy for the browser WebSocket.
-//  false (recommended): mint a short-lived temp token via GET /v1/token, then
-//                        connect with ?token=<temp token>. This is the
-//                        documented browser pattern.
-//  true  (your original local-dev request): pass the raw API key as ?token=.
-//        Undocumented for the Voice Agent API and may be rejected (close 1006).
-const USE_RAW_KEY_AS_TOKEN = false;
+// Auth strategy for the browser WebSocket. The Voice Agent API browser pattern
+// is a short-lived temp token passed as ?token=. How that token is obtained:
+//   "proxy"        (most robust): fetch it from a same-origin local endpoint
+//                  served by server.mjs. Key stays server-side, no CORS.
+//                  Run:  ASSEMBLYAI_API_KEY=<key> node server.mjs
+//   "browser-mint" (works with `npx serve`, no server): the page mints the
+//                  token itself via GET /v1/token using ASSEMBLYAI_API_KEY.
+//                  Fails if the token endpoint doesn't allow browser CORS.
+//   "raw-key"      (last resort): pass the raw API key as ?token=. Undocumented
+//                  for this API; usually rejected with close code 1006.
+const AUTH_MODE = "browser-mint";
+const TOKEN_PROXY_URL = "/token"; // used only when AUTH_MODE === "proxy"
 
 // AssemblyAI Voice Agent API endpoints (US edge). For EU residency swap to
 // agents.eu.assemblyai.com on BOTH the token and ws hosts.
@@ -567,15 +574,28 @@ function flushToolResultsIfIdle() {
   pendingResults = [];
 }
 
-async function mintToken() {
-  // Documented browser auth: mint a single-use, short-lived token server-side
-  // (here, in-browser for local dev) and connect with ?token=.
+async function getAuthToken() {
+  if (AUTH_MODE === "raw-key") return ASSEMBLYAI_API_KEY;
+
+  if (AUTH_MODE === "proxy") {
+    // Same-origin endpoint served by server.mjs — no CORS, key stays server-side.
+    const res = await fetch(TOKEN_PROXY_URL);
+    if (!res.ok) {
+      throw new Error(`Token proxy failed (${res.status}). Is server.mjs running ` +
+        "with ASSEMBLYAI_API_KEY set?");
+    }
+    const data = await res.json();
+    if (!data.token) throw new Error("Token proxy returned no token.");
+    return data.token;
+  }
+
+  // "browser-mint": page mints a single-use, short-lived token itself.
   const res = await fetch(`${TOKEN_URL}?expires_in_seconds=600`, {
     headers: { Authorization: `Bearer ${ASSEMBLYAI_API_KEY}` }, // Bearer: VA API only
   });
   if (!res.ok) {
-    throw new Error(`Token request failed (${res.status}). ` +
-      "Check the API key, or set USE_RAW_KEY_AS_TOKEN.");
+    throw new Error(`Token request failed (${res.status}). Check the API key, ` +
+      "or switch AUTH_MODE to 'proxy' and run server.mjs.");
   }
   const data = await res.json();
   if (!data.token) throw new Error("Token endpoint returned no token.");
@@ -584,8 +604,11 @@ async function mintToken() {
 
 async function connect() {
   clearError();
-  if (ASSEMBLYAI_API_KEY === "YOUR_ASSEMBLYAI_API_KEY" || !ASSEMBLYAI_API_KEY) {
-    showError("Set ASSEMBLYAI_API_KEY at the top of this file before connecting.");
+  const needsKeyInBrowser = AUTH_MODE === "browser-mint" || AUTH_MODE === "raw-key";
+  if (needsKeyInBrowser &&
+      (ASSEMBLYAI_API_KEY === "YOUR_ASSEMBLYAI_API_KEY" || !ASSEMBLYAI_API_KEY)) {
+    showError("Set ASSEMBLYAI_API_KEY at the top of this file, or use " +
+      "AUTH_MODE 'proxy' with server.mjs (then the key lives server-side).");
     return;
   }
 
@@ -601,9 +624,7 @@ async function connect() {
     outGain = audioCtx.createGain();
     outGain.connect(audioCtx.destination);
 
-    const token = USE_RAW_KEY_AS_TOKEN
-      ? ASSEMBLYAI_API_KEY
-      : await mintToken();
+    const token = await getAuthToken();
 
     ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
     ws.binaryType = "arraybuffer";
@@ -747,9 +768,10 @@ function onWsClose(evt) {
   if (evt && evt.code === 1006) {
     setStatus("Closed (1006)", "err");
     showError(
-      "Connection closed before handshake (1006). The token was likely " +
-      "rejected. If USE_RAW_KEY_AS_TOKEN is true, the raw key isn't accepted " +
-      "here — switch it to false to mint a temp token."
+      "Connection closed before handshake (1006) — the token was rejected. " +
+      "If AUTH_MODE is 'raw-key', the raw key isn't accepted; if " +
+      "'browser-mint', the token endpoint likely blocked browser CORS. " +
+      "Switch AUTH_MODE to 'proxy' and run server.mjs."
     );
   } else {
     setStatus("Disconnected", "");
