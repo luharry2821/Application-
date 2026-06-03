@@ -1,0 +1,12 @@
+{
+  "name": "vinyl-concierge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Browser voice agent for a record shop, built on the AssemblyAI Voice Agent API.",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

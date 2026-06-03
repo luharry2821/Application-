@@ -47,7 +47,8 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   // --- Mint a fresh, single-use temp token (key never leaves the server) ---
-  if (url.pathname === "/token") {
+  // Accept both paths so the same HTML works locally and on Vercel.
+  if (url.pathname === "/token" || url.pathname === "/api/token") {
     try {
       const upstream = await fetch(
         `${TOKEN_URL}?expires_in_seconds=${TOKEN_TTL_SECONDS}`,
