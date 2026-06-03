@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vinyl Concierge</title>
+
+<!-- PapaParse for CSV parsing (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<style>
+  :root {
+    --bg: #0d0b14;
+    --panel: #17131f;
+    --edge: #2a2435;
+    --ink: #efe9f7;
+    --muted: #a99fc0;
+    --accent: #ffcf5c;
+    --good: #6ee7a8;
+    --bad: #ff7a7a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 70% -10%, #241b33 0%, var(--bg) 60%);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  header {
+    padding: 22px 28px 10px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 24px; letter-spacing: 0.3px; }
+  header .sub { color: var(--muted); font-size: 14px; }
+  main { padding: 8px 28px 40px; }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 8px 0 18px;
+  }
+  button {
+    font: inherit;
+    border: 1px solid var(--edge);
+    background: #221c30;
+    color: var(--ink);
+    padding: 10px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform .05s ease, background .15s ease, opacity .15s ease;
+  }
+  button:hover:not(:disabled) { background: #2b2440; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #2a1d00; border-color: transparent; font-weight: 600; }
+
+  .status {
+    font-size: 13px;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #6b6480;
+  }
+  .dot.live { background: var(--good); box-shadow: 0 0 0 4px rgba(110,231,168,.15); }
+  .dot.err  { background: var(--bad); }
+
+  #error {
+    display: none;
+    margin: 0 0 18px;
+    padding: 12px 14px;
+    border: 1px solid #6b2d2d;
+    background: #2a1515;
+    color: #ffd5d5;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 22px; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  .shelf {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
+  }
+  .sleeve {
+    position: relative;
+    border-radius: 12px;
+    padding: 14px;
+    min-height: 150px;
+    color: #fff;
+    border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    box-shadow: 0 6px 18px rgba(0,0,0,.35);
+    overflow: hidden;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .sleeve::before {
+    /* faux record peeking out */
+    content: "";
+    position: absolute;
+    right: -42px; top: 50%;
+    transform: translateY(-50%);
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    background: repeating-radial-gradient(circle at center, #111 0 2px, #1c1c1c 2px 4px);
+    box-shadow: inset 0 0 0 22px rgba(0,0,0,.25);
+    opacity: .55;
+  }
+  .sleeve .meta { position: relative; z-index: 1; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  .sleeve .artist { font-weight: 700; font-size: 15px; }
+  .sleeve .title { font-size: 13px; opacity: .92; }
+  .sleeve .genre { margin-top: 6px; font-size: 11px; letter-spacing: .4px; text-transform: uppercase; opacity: .8; }
+  .sleeve .vibes { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+  .sleeve .vibe {
+    font-size: 10px; padding: 2px 7px; border-radius: 999px;
+    background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.18);
+  }
+  .sleeve.matched {
+    border-color: var(--accent);
+    transform: translateY(-6px) scale(1.03);
+    box-shadow: 0 14px 30px rgba(255,207,92,.35), 0 0 0 3px rgba(255,207,92,.25);
+  }
+  .sleeve.matched::after {
+    content: "▶ now spinning";
+    position: absolute; top: 10px; left: 12px; z-index: 2;
+    font-size: 10px; font-weight: 700; letter-spacing: .5px;
+    color: #2a1d00; background: var(--accent);
+    padding: 2px 7px; border-radius: 999px;
+  }
+
+  aside {
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 14px;
+    padding: 14px;
+    height: fit-content;
+    position: sticky;
+    top: 16px;
+  }
+  aside h2 { margin: 2px 0 10px; font-size: 14px; color: var(--muted); font-weight: 600; }
+  #transcript { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; }
+  .line { font-size: 14px; line-height: 1.35; padding: 8px 10px; border-radius: 10px; }
+  .line.user  { background: #20283a; align-self: flex-end; }
+  .line.agent { background: #2a2233; }
+  .line .who { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); display: block; margin-bottom: 2px; }
+  .line.partial { opacity: .6; font-style: italic; }
+  .empty { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎚️ Vinyl Concierge</h1>
+  <span class="sub">Ask out loud for a mood, a genre, or an artist — I'll pull the record off the shelf.</span>
+</header>
+
+<main>
+  <div id="error"></div>
+
+  <div class="bar">
+    <button id="connectBtn" class="primary" disabled>Loading shelf…</button>
+    <button id="disconnectBtn" disabled>Disconnect</button>
+    <span class="status"><span id="dot" class="dot"></span><span id="statusText">Loading inventory…</span></span>
+  </div>
+
+  <div class="layout">
+    <section class="shelf" id="shelf" aria-label="Record shelf"></section>
+    <aside>
+      <h2>Conversation</h2>
+      <div id="transcript"><div class="empty">Connect and start talking…</div></div>
+    </aside>
+  </div>
+</main>
+
+<script>
+/* ============================================================================
+ * CONFIG  — edit these two before running.
+ * ==========================================================================*/
+
+// Paste the AssemblyAI API key you created at
+// https://www.assemblyai.com/dashboard/api-keys
+// NOTE: intentionally left as a placeholder so a real key is never committed
+// to git. This file is LOCAL-DEV ONLY — the key is exposed to the browser.
+const ASSEMBLYAI_API_KEY = "YOUR_ASSEMBLYAI_API_KEY";
+
+// Published / link-viewable Google Sheet, as a CSV export.
+// Columns (header row required): artist, title, genre, vibe, note
+// (`vibe` is space-separated tags.) If this URL ever returns 401, open the
+// sheet -> File -> Share -> Publish to web, and use the pub?output=csv link.
+const SHEET_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/1MsFwPUVRusLIYbbU7JCSqmAvGKtUQkYpbnIKwaqGx1s/export?format=csv";
+
+// Auth strategy for the browser WebSocket.
+//  false (recommended): mint a short-lived temp token via GET /v1/token, then
+//                        connect with ?token=<temp token>. This is the
+//                        documented browser pattern.
+//  true  (your original local-dev request): pass the raw API key as ?token=.
+//        Undocumented for the Voice Agent API and may be rejected (close 1006).
+const USE_RAW_KEY_AS_TOKEN = false;
+
+// AssemblyAI Voice Agent API endpoints (US edge). For EU residency swap to
+// agents.eu.assemblyai.com on BOTH the token and ws hosts.
+const WS_URL    = "wss://agents.assemblyai.com/v1/ws";
+const TOKEN_URL = "https://agents.assemblyai.com/v1/token";
+
+const SAMPLE_RATE = 24000;            // PCM16 mono 24 kHz, per Voice Agent API
+const FRAME_SAMPLES = 1200;           // ~50 ms per outgoing audio chunk
+const AGENT_VOICE = "ivy";            // valid voice id (see docs); default ivy
+
+/* ============================================================================
+ * DOM helpers
+ * ==========================================================================*/
+const $ = (id) => document.getElementById(id);
+const connectBtn = $("connectBtn");
+const disconnectBtn = $("disconnectBtn");
+const statusText = $("statusText");
+const dot = $("dot");
+const shelfEl = $("shelf");
+const transcriptEl = $("transcript");
+const errorEl = $("error");
+
+function setStatus(text, state /* "", "live", "err" */) {
+  statusText.textContent = text;
+  dot.className = "dot" + (state ? " " + state : "");
+}
+function showError(msg) {
+  errorEl.textContent = msg;
+  errorEl.style.display = "block";
+}
+function clearError() {
+  errorEl.style.display = "none";
+}
+
+/* ============================================================================
+ * Inventory: load from the published Google Sheet CSV at startup.
+ * ==========================================================================*/
+let records = [];   // [{ artist, title, genre, vibe:[], note }]
+
+// Deterministic gradient derived from the artist name (no color column).
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function gradientFor(name) {
+  const h = hashStr(name || "");
+  const h1 = h % 360;
+  const h2 = (h1 + 35 + ((h >> 4) % 90)) % 360;
+  return `linear-gradient(135deg, hsl(${h1} 62% 46%), hsl(${h2} 58% 26%))`;
+}
+
+function renderShelf() {
+  shelfEl.innerHTML = "";
+  records.forEach((r, idx) => {
+    const card = document.createElement("div");
+    card.className = "sleeve";
+    card.style.background = gradientFor(r.artist);
+    card.dataset.index = String(idx);
+
+    const vibes = r.vibe
+      .map((v) => `<span class="vibe">${escapeHtml(v)}</span>`)
+      .join("");
+
+    card.innerHTML = `
+      <div class="meta">
+        <div class="artist">${escapeHtml(r.artist)}</div>
+        <div class="title">${escapeHtml(r.title)}</div>
+        ${r.genre ? `<div class="genre">${escapeHtml(r.genre)}</div>` : ""}
+        ${vibes ? `<div class="vibes">${vibes}</div>` : ""}
+      </div>`;
+    shelfEl.appendChild(card);
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+// Normalize a parsed CSV row into our record shape. Tolerant of header
+// casing / surrounding whitespace.
+function toRecord(row) {
+  const get = (k) => {
+    const key = Object.keys(row).find(
+      (h) => h && h.trim().toLowerCase() === k
+    );
+    return key ? String(row[key] ?? "").trim() : "";
+  };
+  const artist = get("artist");
+  const title = get("title");
+  if (!artist && !title) return null; // skip blank lines
+  return {
+    artist,
+    title,
+    genre: get("genre"),
+    vibe: get("vibe").split(/\s+/).filter(Boolean),
+    note: get("note"),
+  };
+}
+
+function loadInventory() {
+  return new Promise((resolve, reject) => {
+    Papa.parse(SHEET_CSV_URL, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const rows = (results.data || [])
+          .map(toRecord)
+          .filter(Boolean);
+        if (!rows.length) {
+          reject(new Error("The sheet loaded but contained no records."));
+          return;
+        }
+        resolve(rows);
+      },
+      error: (err) => reject(err),
+    });
+  });
+}
+
+/* ============================================================================
+ * search_shelf — keyword scoring over the loaded rows.
+ * Weighted: artist/title (3), genre/vibe (2), note (1).
+ * ==========================================================================*/
+function searchShelf(args) {
+  const query = (args && args.query ? String(args.query) : "").toLowerCase();
+  const tokens = query.split(/\s+/).filter(Boolean);
+
+  const scored = [];
+  records.forEach((r, idx) => {
+    let score = 0;
+    for (const t of tokens) {
+      if (r.artist.toLowerCase().includes(t)) score += 3;
+      if (r.title.toLowerCase().includes(t)) score += 3;
+      if (r.genre.toLowerCase().includes(t)) score += 2;
+      if (r.vibe.some((v) => v.toLowerCase().includes(t))) score += 2;
+      if (r.note.toLowerCase().includes(t)) score += 1;
+    }
+    if (score > 0) scored.push({ idx, score, r });
+  });
+  scored.sort((a, b) => b.score - a.score);
+
+  highlightRecord(scored.length ? scored[0].idx : -1);
+
+  const matches = scored.slice(0, 3).map((s) => ({
+    artist: s.r.artist,
+    title: s.r.title,
+    genre: s.r.genre,
+    vibe: s.r.vibe,
+    note: s.r.note,
+  }));
+
+  return matches.length
+    ? { matches, message: `Found ${matches.length} match(es).` }
+    : { matches: [], message: "No record on the shelf matched that." };
+}
+
+function highlightRecord(idx) {
+  [...shelfEl.children].forEach((el) => {
+    el.classList.toggle("matched", Number(el.dataset.index) === idx);
+  });
+}
+
+/* ============================================================================
+ * Tool definition (FLAT schema — NOT OpenAI's nested {function:{...}} form).
+ * ==========================================================================*/
+const SEARCH_SHELF_TOOL = {
+  type: "function",
+  name: "search_shelf",
+  description:
+    "Search the in-store record shelf. Call this whenever the customer " +
+    "describes what they want to listen to — a mood or vibe, a genre, an " +
+    "artist, or an album title. Returns the closest matching records on the " +
+    "shelf so you can recommend one.",
+  parameters: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description:
+          "What the customer is after, in their words: a vibe, genre, " +
+          "artist, or title (e.g. 'something mellow for a rainy night').",
+      },
+    },
+    required: ["query"],
+  },
+};
+
+/* ============================================================================
+ * Audio: capture (mic -> PCM16 24k -> base64) and playback (24k buffers).
+ * ==========================================================================*/
+let audioCtx = null;       // single 24 kHz context, shared in + out
+let micStream = null;
+let micSourceNode = null;
+let workletNode = null;
+let outGain = null;
+
+// Playback scheduling
+let playHead = 0;                 // next scheduled start time
+const activeSources = new Set();  // live AudioBufferSourceNodes (for barge-in)
+
+// Inline AudioWorklet processor: accumulates Float32 mic samples, converts to
+// Int16, and posts ~50 ms frames to the main thread. The context is already
+// 24 kHz, so the browser resamples the mic for us — no manual resampling.
+const WORKLET_SRC = `
+class PCM16Worklet extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this._buf = new Float32Array(0);
+    this._target = ${FRAME_SAMPLES};
+  }
+  process(inputs) {
+    const input = inputs[0];
+    if (input && input[0]) {
+      const ch = input[0];
+      const merged = new Float32Array(this._buf.length + ch.length);
+      merged.set(this._buf, 0);
+      merged.set(ch, this._buf.length);
+      this._buf = merged;
+      while (this._buf.length >= this._target) {
+        const frame = this._buf.subarray(0, this._target);
+        const i16 = new Int16Array(this._target);
+        for (let i = 0; i < this._target; i++) {
+          let s = Math.max(-1, Math.min(1, frame[i]));
+          i16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        this.port.postMessage(i16.buffer, [i16.buffer]);
+        this._buf = this._buf.slice(this._target);
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('pcm16-worklet', PCM16Worklet);
+`;
+
+async function startMic() {
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      channelCount: 1,
+      echoCancellation: true,   // required for clean barge-in
+      noiseSuppression: false,  // API runs server-side voice focus; don't stack
+      autoGainControl: true,
+    },
+  });
+
+  const blobUrl = URL.createObjectURL(
+    new Blob([WORKLET_SRC], { type: "application/javascript" })
+  );
+  await audioCtx.audioWorklet.addModule(blobUrl);
+
+  micSourceNode = audioCtx.createMediaStreamSource(micStream);
+  workletNode = new AudioWorkletNode(audioCtx, "pcm16-worklet");
+  workletNode.port.onmessage = (e) => sendAudio(e.data /* ArrayBuffer */);
+
+  // Keep the worklet pulled by the graph without echoing the mic to speakers.
+  const silent = audioCtx.createGain();
+  silent.gain.value = 0;
+  micSourceNode.connect(workletNode);
+  workletNode.connect(silent);
+  silent.connect(audioCtx.destination);
+}
+
+function stopMic() {
+  try { workletNode && workletNode.disconnect(); } catch (e) {}
+  try { micSourceNode && micSourceNode.disconnect(); } catch (e) {}
+  if (micStream) micStream.getTracks().forEach((t) => t.stop());
+  workletNode = micSourceNode = micStream = null;
+}
+
+function playChunk(int16) {
+  const f32 = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 0x8000;
+  const buf = audioCtx.createBuffer(1, f32.length, SAMPLE_RATE);
+  buf.copyToChannel(f32, 0);
+
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  src.connect(outGain);
+
+  const now = audioCtx.currentTime;
+  if (playHead < now) playHead = now + 0.02; // small lead to absorb jitter
+  src.start(playHead);
+  playHead += buf.duration;
+
+  activeSources.add(src);
+  src.onended = () => activeSources.delete(src);
+}
+
+// Barge-in flush: stop everything queued and rebuild the output path so the
+// user never hears stale agent speech.
+function flushPlayback() {
+  for (const s of activeSources) { try { s.stop(); } catch (e) {} }
+  activeSources.clear();
+  playHead = 0;
+  if (outGain) {
+    try { outGain.disconnect(); } catch (e) {}
+  }
+  outGain = audioCtx.createGain();
+  outGain.connect(audioCtx.destination);
+}
+
+/* ============================================================================
+ * Base64 helpers for PCM16
+ * ==========================================================================*/
+function arrayBufferToB64(buf) {
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+function b64ToInt16(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Int16Array(bytes.buffer);
+}
+
+/* ============================================================================
+ * WebSocket session lifecycle
+ * ==========================================================================*/
+let ws = null;
+let sessionReady = false;
+let sessionId = null;
+
+// Tool-result flush rule: send tool.result only when reply.done is the latest
+// event received (not mid-transition-phrase, not after a new turn started).
+let lastEvent = null;
+let pendingResults = [];
+
+function flushToolResultsIfIdle() {
+  if (lastEvent !== "reply.done" || !pendingResults.length) return;
+  for (const r of pendingResults) {
+    ws.send(JSON.stringify({
+      type: "tool.result",
+      call_id: r.call_id,
+      result: JSON.stringify(r.result), // result must be a JSON string
+    }));
+  }
+  pendingResults = [];
+}
+
+async function mintToken() {
+  // Documented browser auth: mint a single-use, short-lived token server-side
+  // (here, in-browser for local dev) and connect with ?token=.
+  const res = await fetch(`${TOKEN_URL}?expires_in_seconds=600`, {
+    headers: { Authorization: `Bearer ${ASSEMBLYAI_API_KEY}` }, // Bearer: VA API only
+  });
+  if (!res.ok) {
+    throw new Error(`Token request failed (${res.status}). ` +
+      "Check the API key, or set USE_RAW_KEY_AS_TOKEN.");
+  }
+  const data = await res.json();
+  if (!data.token) throw new Error("Token endpoint returned no token.");
+  return data.token;
+}
+
+async function connect() {
+  clearError();
+  if (ASSEMBLYAI_API_KEY === "YOUR_ASSEMBLYAI_API_KEY" || !ASSEMBLYAI_API_KEY) {
+    showError("Set ASSEMBLYAI_API_KEY at the top of this file before connecting.");
+    return;
+  }
+
+  connectBtn.disabled = true;
+  setStatus("Connecting…", "");
+
+  try {
+    // AudioContext must be created/resumed from this user gesture.
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: SAMPLE_RATE,
+    });
+    await audioCtx.resume();
+    outGain = audioCtx.createGain();
+    outGain.connect(audioCtx.destination);
+
+    const token = USE_RAW_KEY_AS_TOKEN
+      ? ASSEMBLYAI_API_KEY
+      : await mintToken();
+
+    ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = onWsOpen;
+    ws.onmessage = onWsMessage;
+    ws.onerror = () => setStatus("Socket error", "err");
+    ws.onclose = onWsClose;
+  } catch (err) {
+    showError("Could not connect: " + err.message);
+    setStatus("Disconnected", "err");
+    connectBtn.disabled = false;
+    teardownAudio();
+  }
+}
+
+function onWsOpen() {
+  // Configure the session immediately; don't wait for session.ready.
+  const keyterms = buildKeyterms();
+  ws.send(JSON.stringify({
+    type: "session.update",
+    session: {
+      system_prompt:
+        "You are Vinyl Concierge, a warm, knowledgeable host at a record " +
+        "shop. Keep replies short and spoken-friendly. When the customer " +
+        "describes a mood, genre, artist, or title, call the search_shelf " +
+        "tool, then recommend ONE record from the results by artist and " +
+        "title and say why it fits. If nothing matches, say so and ask a " +
+        "quick follow-up. Never read out raw data or JSON.",
+      greeting:
+        "Welcome to the shop! Tell me a mood, a genre, or an artist, and " +
+        "I'll find you the perfect record.",
+      input: {
+        format: { encoding: "audio/pcm" },   // PCM16 24 kHz
+        keyterms: keyterms,                   // boost the real artist names
+        turn_detection: {
+          vad_threshold: 0.5,
+          min_silence: 400,
+          max_silence: 1280,
+          interrupt_response: true,           // allow barge-in
+        },
+      },
+      output: {
+        voice: AGENT_VOICE,
+        format: { encoding: "audio/pcm" },
+      },
+      tools: [SEARCH_SHELF_TOOL],
+    },
+  }));
+
+  disconnectBtn.disabled = false;
+  setStatus("Session starting…", "");
+}
+
+async function onWsMessage(evt) {
+  let msg;
+  try { msg = JSON.parse(evt.data); } catch (e) { return; }
+
+  switch (msg.type) {
+    case "session.ready":
+      sessionReady = true;
+      sessionId = msg.session_id || sessionId;
+      setStatus("Live — start talking", "live");
+      try {
+        await startMic(); // only stream audio AFTER session.ready
+      } catch (err) {
+        showError("Microphone error: " + err.message);
+        setStatus("No mic", "err");
+      }
+      break;
+
+    case "input.speech.started":
+      // User started speaking -> barge-in: drop any agent audio immediately.
+      lastEvent = "input.speech.started";
+      flushPlayback();
+      break;
+
+    case "input.speech.stopped":
+      break;
+
+    case "transcript.user.delta":
+      renderPartial("user", msg.transcript || msg.text || "");
+      break;
+
+    case "transcript.user":
+      renderFinal("user", msg.transcript || msg.text || "");
+      break;
+
+    case "reply.started":
+      lastEvent = "reply.started";
+      break;
+
+    case "reply.audio": {
+      // Audio for output is in `data` (input.audio uses `audio`). Don't mix up.
+      const b64 = msg.data;
+      if (b64) playChunk(b64ToInt16(b64));
+      break;
+    }
+
+    case "transcript.agent":
+      renderFinal("agent", msg.transcript || msg.text || "");
+      break;
+
+    case "reply.done":
+      lastEvent = "reply.done";
+      if (msg.status === "interrupted") {
+        flushPlayback();
+        pendingResults = []; // discard tool work the user interrupted
+      } else {
+        flushToolResultsIfIdle();
+      }
+      break;
+
+    case "tool.call": {
+      // { call_id, name, arguments } — arguments is an object, not `args`.
+      if (msg.name === "search_shelf") {
+        const result = searchShelf(msg.arguments || {});
+        pendingResults.push({ call_id: msg.call_id, result });
+        flushToolResultsIfIdle(); // slow-tool case: reply.done may already be last
+      }
+      break;
+    }
+
+    case "session.error":
+      showError("Session error: " + (msg.message || msg.code || "unknown"));
+      setStatus("Error", "err");
+      break;
+
+    default:
+      break;
+  }
+}
+
+function onWsClose(evt) {
+  sessionReady = false;
+  disconnectBtn.disabled = true;
+  connectBtn.disabled = false;
+  teardownAudio();
+  if (evt && evt.code === 1006) {
+    setStatus("Closed (1006)", "err");
+    showError(
+      "Connection closed before handshake (1006). The token was likely " +
+      "rejected. If USE_RAW_KEY_AS_TOKEN is true, the raw key isn't accepted " +
+      "here — switch it to false to mint a temp token."
+    );
+  } else {
+    setStatus("Disconnected", "");
+  }
+}
+
+function disconnect() {
+  if (ws && ws.readyState <= 1) ws.close();
+  ws = null;
+}
+
+function teardownAudio() {
+  stopMic();
+  flushPlayback();
+  if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
+  outGain = null;
+  sessionReady = false;
+}
+
+function sendAudio(arrayBuffer) {
+  if (!sessionReady || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({
+    type: "input.audio",
+    audio: arrayBufferToB64(arrayBuffer), // input audio goes in `audio`
+  }));
+}
+
+// Keyterms: real artist names so ASR doesn't mangle them. Max 100 terms,
+// each <= 50 chars.
+function buildKeyterms() {
+  const seen = new Set();
+  const terms = [];
+  for (const r of records) {
+    const name = (r.artist || "").trim();
+    if (name && name.length <= 50 && !seen.has(name.toLowerCase())) {
+      seen.add(name.toLowerCase());
+      terms.push(name);
+      if (terms.length >= 100) break;
+    }
+  }
+  return terms;
+}
+
+/* ============================================================================
+ * Transcript rendering
+ * ==========================================================================*/
+function ensureTranscriptCleared() {
+  const empty = transcriptEl.querySelector(".empty");
+  if (empty) empty.remove();
+}
+let partialEls = { user: null, agent: null };
+
+function renderPartial(who, text) {
+  ensureTranscriptCleared();
+  if (!partialEls[who]) {
+    const el = document.createElement("div");
+    el.className = `line ${who} partial`;
+    el.innerHTML = `<span class="who">${who}</span><span class="txt"></span>`;
+    transcriptEl.appendChild(el);
+    partialEls[who] = el;
+  }
+  partialEls[who].querySelector(".txt").textContent = text;
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+function renderFinal(who, text) {
+  ensureTranscriptCleared();
+  if (!text) { if (partialEls[who]) { partialEls[who].remove(); partialEls[who] = null; } return; }
+  if (partialEls[who]) {
+    partialEls[who].classList.remove("partial");
+    partialEls[who].querySelector(".txt").textContent = text;
+    partialEls[who] = null;
+  } else {
+    const el = document.createElement("div");
+    el.className = `line ${who}`;
+    el.innerHTML = `<span class="who">${who}</span><span class="txt"></span>`;
+    el.querySelector(".txt").textContent = text;
+    transcriptEl.appendChild(el);
+  }
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+/* ============================================================================
+ * Startup
+ * ==========================================================================*/
+connectBtn.addEventListener("click", connect);
+disconnectBtn.addEventListener("click", disconnect);
+
+(async function init() {
+  try {
+    records = await loadInventory();
+    renderShelf();
+    clearError();
+    connectBtn.disabled = false;
+    connectBtn.textContent = "Connect & talk";
+    setStatus(`Shelf loaded — ${records.length} records`, "");
+  } catch (err) {
+    connectBtn.disabled = true;            // never connect without inventory
+    connectBtn.textContent = "Shelf unavailable";
+    setStatus("Inventory failed to load", "err");
+    showError(
+      "Couldn't load the record shelf from the Google Sheet: " +
+      (err && err.message ? err.message : err) +
+      ". Check that SHEET_CSV_URL is published/link-viewable and has the " +
+      "columns: artist, title, genre, vibe, note."
+    );
+  }
+})();
+</script>
+</body>
+</html>
