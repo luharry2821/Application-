@@ -7,128 +7,157 @@
 
 <style>
   :root {
-    --bg: #0a0f1a;
-    --panel: #121a2b;
-    --edge: #233149;
-    --ink: #eaf1ff;
-    --muted: #93a4c4;
-    --accent: #4fc3f7;
-    --good: #6ee7a8;
-    --bad: #ff7a7a;
+    --bg: #070b14;
+    --bg2: #0c1426;
+    --card: rgba(255,255,255,.045);
+    --edge: rgba(255,255,255,.09);
+    --ink: #f2f6ff;
+    --muted: #9aa8c7;
+    --brand: #2f6bff;
+    --brand2: #42d6ff;
+    --good: #5ce6a8;
+    --bad: #ff6b6b;
+    --userbub: #1d3a6e;
+    --agentbub: #161f38;
   }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
     margin: 0;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: radial-gradient(1200px 600px at 70% -10%, #16243d 0%, var(--bg) 60%);
     color: var(--ink);
+    background:
+      radial-gradient(1100px 720px at 85% -12%, #15336b 0%, rgba(0,0,0,0) 55%),
+      radial-gradient(900px 620px at -5% 112%, #11264d 0%, rgba(0,0,0,0) 50%),
+      linear-gradient(180deg, var(--bg2), var(--bg));
     min-height: 100vh;
   }
-  header { padding: 22px 28px 4px; text-align: center; }
-  header h1 { margin: 0; font-size: 21px; letter-spacing: .3px; font-weight: 700; }
-  header .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
-  main { padding: 10px 24px 48px; max-width: 1040px; margin: 0 auto; }
 
-  button {
-    font: inherit;
-    border: 1px solid var(--edge);
-    background: #1a2436;
-    color: var(--ink);
-    padding: 10px 16px;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: transform .05s ease, background .15s ease, opacity .15s ease;
+  /* Brand bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 28px; border-bottom: 1px solid var(--edge);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   }
-  button:hover:not(:disabled) { background: #223150; }
-  button:active:not(:disabled) { transform: translateY(1px); }
-  button:disabled { opacity: .45; cursor: not-allowed; }
-  button.primary { background: var(--accent); color: #05263a; border-color: transparent; font-weight: 700; }
-  button.big { padding: 14px 30px; font-size: 16px; border-radius: 999px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .mark {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--brand), var(--brand2));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 21px; color: #04122e;
+    box-shadow: 0 8px 22px rgba(47,107,255,.45);
+  }
+  .brand .name { font-weight: 800; font-size: 18px; letter-spacing: .6px; line-height: 1.05; }
+  .brand .name span { display: block; font-weight: 600; font-size: 9.5px; letter-spacing: 3px; color: var(--muted); margin-top: 2px; }
+  .agentpill {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted);
+    background: var(--card); border: 1px solid var(--edge); padding: 7px 14px; border-radius: 999px;
+  }
+  .agentpill .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 4px rgba(92,230,168,.15); }
+
+  main { max-width: 1140px; margin: 0 auto; padding: 28px 24px 56px; }
+  #error {
+    display: none; margin: 0 0 18px; padding: 13px 16px;
+    border: 1px solid rgba(255,107,107,.4); background: rgba(255,107,107,.09);
+    color: #ffd7d7; border-radius: 12px; font-size: 14px;
+  }
+
+  .stage { display: grid; grid-template-columns: 1.05fr .95fr; gap: 24px; align-items: stretch; }
+  @media (max-width: 880px) { .stage { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card); border: 1px solid var(--edge); border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+
+  /* Call panel */
+  .call-card { padding: 42px 28px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; }
+  .orb {
+    position: relative; width: 196px; height: 196px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 35%, #27407a 0%, #0e1830 72%);
+    box-shadow: 0 20px 50px rgba(0,0,0,.5), inset 0 0 50px rgba(0,0,0,.5);
+  }
+  .orb .ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(66,214,255,.4); opacity: 0; }
+  .orb.live .ring { animation: ripple 2.2s ease-out infinite; }
+  .orb.live .ring.r2 { animation-delay: 1.1s; }
+  @keyframes ripple { 0% { transform: scale(.72); opacity: .85; } 100% { transform: scale(1.32); opacity: 0; } }
+  .orb .face { font-size: 54px; }
+  .orb .name { position: absolute; bottom: 24px; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+
+  .headline { margin: 6px 0 0; font-size: 23px; font-weight: 700; line-height: 1.3; max-width: 420px; }
+  .subline { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; max-width: 380px; }
+
+  .controls { display: flex; gap: 12px; margin-top: 8px; }
+  .cta {
+    border: none; cursor: pointer; font: inherit; font-weight: 700; font-size: 17px; color: #04122e;
+    background: linear-gradient(135deg, var(--brand), var(--brand2));
+    padding: 16px 36px; border-radius: 999px;
+    box-shadow: 0 14px 30px rgba(47,107,255,.4);
+    transition: transform .06s ease, box-shadow .15s ease, opacity .15s ease;
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .cta::before { content: "📞"; font-size: 18px; }
+  .cta:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 18px 40px rgba(47,107,255,.52); }
+  .cta:active:not(:disabled) { transform: translateY(1px); }
+  .cta:disabled { opacity: .55; cursor: not-allowed; }
+  .cta.end { background: linear-gradient(135deg, #ff5d5d, #ff8a5d); color: #2a0a0a; box-shadow: 0 14px 30px rgba(255,93,93,.35); }
+  .cta.end::before { content: "⛔"; }
   .hidden { display: none !important; }
 
   .status { font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: #586480; }
-  .dot.live { background: var(--good); box-shadow: 0 0 0 4px rgba(110,231,168,.15); }
+  .dot.live { background: var(--good); box-shadow: 0 0 0 4px rgba(92,230,168,.15); }
   .dot.err  { background: var(--bad); }
 
-  #error {
-    display: none; margin: 0 0 18px; padding: 12px 14px;
-    border: 1px solid #6b2d2d; background: #2a1515; color: #ffd5d5;
-    border-radius: 10px; font-size: 14px;
-  }
-
-  .stage { display: grid; grid-template-columns: 1fr 360px; gap: 28px; align-items: start; }
-  @media (max-width: 860px) { .stage { grid-template-columns: 1fr; } }
-
-  .centerpiece {
-    display: flex; flex-direction: column; align-items: center; text-align: center;
-    gap: 22px; padding: 30px 10px 10px;
-  }
-  /* Pulsing call orb */
-  .orb {
-    position: relative; width: 230px; height: 230px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: radial-gradient(circle at 50% 38%, #2a3f63 0%, #142036 70%);
-    box-shadow: 0 24px 55px rgba(0,0,0,.5), inset 0 0 60px rgba(0,0,0,.55);
-  }
-  .orb .ring {
-    position: absolute; inset: 0; border-radius: 50%;
-    border: 2px solid rgba(79,195,247,.35);
-  }
-  .orb.live .ring { animation: ripple 2.4s ease-out infinite; }
-  @keyframes ripple {
-    0% { transform: scale(.7); opacity: .9; }
-    100% { transform: scale(1.25); opacity: 0; }
-  }
-  .orb .face { font-size: 46px; }
-  .orb .name { position: absolute; bottom: 30px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
-
-  .prompt { margin: 0; font-size: 21px; font-weight: 600; line-height: 1.3; max-width: 460px; }
-  .controls { display: flex; gap: 10px; }
-
-  aside {
-    background: var(--panel); border: 1px solid var(--edge); border-radius: 14px;
-    padding: 14px; height: fit-content; position: sticky; top: 16px;
-  }
-  aside h2 { margin: 2px 0 10px; font-size: 14px; color: var(--muted); font-weight: 600; }
-  #transcript { display: flex; flex-direction: column; gap: 8px; max-height: 62vh; overflow-y: auto; }
-  .line { font-size: 14px; line-height: 1.35; padding: 8px 10px; border-radius: 10px; }
-  .line.user  { background: #1c2942; align-self: flex-end; }
-  .line.agent { background: #232c3f; }
-  .line.tool  { background: #1a2f24; color: #bfeccc; font-size: 12px; font-style: italic; }
-  .line .who { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); display: block; margin-bottom: 2px; }
+  /* Conversation panel */
+  .convo-card { display: flex; flex-direction: column; min-height: 540px; max-height: 74vh; }
+  .convo-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--edge); }
+  .convo-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+  .convo-head .live-tag { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  #transcript { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 18px; overflow-y: auto; }
+  .line { font-size: 14px; line-height: 1.4; padding: 10px 13px; border-radius: 14px; max-width: 86%; }
+  .line.user  { background: var(--userbub); align-self: flex-end; border-bottom-right-radius: 5px; }
+  .line.agent { background: var(--agentbub); border: 1px solid var(--edge); align-self: flex-start; border-bottom-left-radius: 5px; }
+  .line.tool  { background: rgba(92,230,168,.08); border: 1px solid rgba(92,230,168,.25); color: #bff3d6; font-size: 12px; font-style: italic; align-self: center; max-width: 95%; }
+  .line .who { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); display: block; margin-bottom: 3px; }
   .line.partial { opacity: .6; font-style: italic; }
-  .empty { color: var(--muted); font-size: 13px; }
+  .empty { color: var(--muted); font-size: 13px; margin: auto; text-align: center; }
 </style>
 </head>
 <body>
-<header>
-  <h1>🚗 Skyline Car Rental</h1>
-  <div class="sub">Talk to Ava at the desk</div>
-</header>
+<div class="topbar">
+  <div class="brand">
+    <div class="mark">S</div>
+    <div class="name">SKYLINE<span>CAR RENTAL</span></div>
+  </div>
+  <div class="agentpill"><span class="pdot"></span> Ava · Virtual Agent</div>
+</div>
 
 <main>
   <div id="error"></div>
 
   <div class="stage">
-    <section class="centerpiece">
+    <section class="card call-card">
       <div class="orb" id="orb">
         <div class="ring"></div>
+        <div class="ring r2"></div>
         <div class="face">🎧</div>
         <div class="name">Ava</div>
       </div>
-      <h2 class="prompt" id="prompt">Tap “Start call” and ask Ava anything.</h2>
+      <h1 class="headline" id="prompt">Tap “Start call” and ask Ava anything.</h1>
+      <p class="subline">Reservations, roadside, billing, lost &amp; found — Ava can help you, hands-free.</p>
       <div class="controls">
-        <button id="connectBtn" class="primary big">Start call</button>
-        <button id="disconnectBtn" class="big hidden">End call</button>
+        <button id="connectBtn" class="cta">Start call</button>
+        <button id="disconnectBtn" class="cta end hidden">End call</button>
       </div>
       <span class="status"><span id="dot" class="dot"></span><span id="statusText">Ready</span></span>
     </section>
 
-    <aside>
-      <h2>Conversation</h2>
+    <section class="card convo-card">
+      <div class="convo-head"><h2>Conversation</h2><span class="live-tag">Live transcript</span></div>
       <div id="transcript"><div class="empty">Your conversation with Ava will appear here…</div></div>
-    </aside>
+    </section>
   </div>
 </main>
 
@@ -149,7 +178,7 @@ const WS_URL = "wss://agents.assemblyai.com/v1/ws";
 
 const SAMPLE_RATE = 24000;   // PCM16 mono 24 kHz, per Voice Agent API
 const FRAME_SAMPLES = 1200;  // ~50 ms per outgoing audio chunk
-const AGENT_VOICE = "ivy";   // Ava's voice (valid Voice Agent voice id)
+const AGENT_VOICE = "mia";   // Ava's voice (valid Voice Agent voice id)
 
 // Boost recognition of in-domain terms (max 100, each <= 50 chars).
 const KEYTERMS = [
