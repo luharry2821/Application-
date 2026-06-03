@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vinyl Concierge</title>
+<title>Rough Trade</title>
 
 <!-- PapaParse for CSV parsing (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -148,7 +148,7 @@
 </head>
 <body>
 <header>
-  <h1>🎚️ Vinyl Concierge</h1>
+  <h1>🎚️ Rough Trade</h1>
 </header>
 
 <main>
@@ -651,7 +651,7 @@ function onWsOpen() {
     type: "session.update",
     session: {
       system_prompt:
-        "You are Vinyl Concierge, a warm, knowledgeable host at a record " +
+        "You are the concierge at Rough Trade, a warm, knowledgeable record " +
         "shop. Keep replies short and spoken-friendly. Detect the language " +
         "the customer is speaking (English, Spanish, French, German, " +
         "Italian, or Portuguese) and ALWAYS reply in that same language. " +
@@ -660,7 +660,7 @@ function onWsOpen() {
         "by artist and title and say why it fits. If nothing matches, say " +
         "so and ask a quick follow-up. Never read out raw data or JSON.",
       greeting:
-        "Welcome to the shop! Tell me a mood, a genre, or an artist, and " +
+        "Welcome to Rough Trade! Tell me a mood, a genre, or an artist, and " +
         "I'll find you the perfect record.",
       input: {
         format: { encoding: "audio/pcm" },   // PCM16 24 kHz
