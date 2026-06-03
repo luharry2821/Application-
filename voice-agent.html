@@ -123,6 +123,13 @@
   .line .who { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); display: block; margin-bottom: 3px; }
   .line.partial { opacity: .6; font-style: italic; }
   .empty { color: var(--muted); font-size: 13px; margin: auto; text-align: center; }
+
+  /* Diagnostics panel */
+  .diag { margin-top: 22px; background: rgba(0,0,0,.28); border: 1px solid var(--edge); border-radius: 14px; overflow: hidden; }
+  .diag-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--edge); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+  .diag-head button { font: inherit; font-size: 11px; text-transform: none; letter-spacing: 0; color: var(--ink); background: var(--card); border: 1px solid var(--edge); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+  .diag-head button:hover { background: rgba(255,255,255,.08); }
+  #diaglog { margin: 0; padding: 12px 14px; max-height: 220px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.55; color: #c7d4f0; white-space: pre-wrap; word-break: break-word; }
 </style>
 </head>
 <body>
@@ -158,6 +165,11 @@
       <div class="convo-head"><h2>Conversation</h2><span class="live-tag">Live transcript</span></div>
       <div id="transcript"><div class="empty">Your conversation with Ava will appear here…</div></div>
     </section>
+  </div>
+
+  <div class="diag">
+    <div class="diag-head"><span>Diagnostics</span><button id="copyDiag" type="button">Copy</button></div>
+    <pre id="diaglog">Click “Start call” to begin. Steps will appear here.</pre>
   </div>
 </main>
 
@@ -544,6 +556,19 @@ function setStatus(text, state) {
 function showError(msg) { errorEl.textContent = msg; errorEl.style.display = "block"; }
 function clearError() { errorEl.style.display = "none"; }
 
+// On-page diagnostics: mirrors what would go to the browser console, so you can
+// see (and screenshot/copy) what's happening without opening DevTools.
+function dbg(line) {
+  const t = new Date().toLocaleTimeString();
+  const el = $("diaglog");
+  if (el) {
+    if (el.dataset.fresh !== "1") { el.textContent = ""; el.dataset.fresh = "1"; }
+    el.textContent += `[${t}] ${line}\n`;
+    el.scrollTop = el.scrollHeight;
+  }
+  console.log("[AVA]", line);
+}
+
 function setLiveUI(live) {
   orb.classList.toggle("live", live);
   connectBtn.classList.toggle("hidden", live);
@@ -680,7 +705,7 @@ async function getAuthToken() {
   }
   const data = await res.json();
   if (!data.token) throw new Error("Token endpoint returned no token.");
-  console.log("[AVA] token minted OK");   // DEBUG
+  dbg("Token minted ✓");
   return data.token;
 }
 
@@ -689,20 +714,30 @@ async function connect() {
   connectBtn.disabled = true;
   connectBtn.textContent = "Connecting…";
   setStatus("Connecting…", "");
+  dbg("Start call clicked.");
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
     await audioCtx.resume();
     outGain = audioCtx.createGain();
     outGain.connect(audioCtx.destination);
 
+    // Ask for the microphone up front so the browser prompts you immediately.
+    // Audio isn't actually sent until the session is ready (sendAudio gates on
+    // sessionReady), but capturing now rules out any mic-permission confusion.
+    dbg("Requesting microphone… (allow the popup)");
+    await startMic();
+    dbg("Microphone granted ✓");
+
     const token = await getAuthToken();
+    dbg("Opening WebSocket to Voice Agent API…");
     ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(token)}`);
     ws.binaryType = "arraybuffer";
     ws.onopen = onWsOpen;
     ws.onmessage = onWsMessage;
-    ws.onerror = () => setStatus("Socket error", "err");
+    ws.onerror = () => { dbg("WebSocket error event"); setStatus("Socket error", "err"); };
     ws.onclose = onWsClose;
   } catch (err) {
+    dbg("ERROR during connect: " + err.message);
     showError("Could not connect: " + err.message);
     setStatus("Disconnected", "err");
     connectBtn.disabled = false;
@@ -712,7 +747,7 @@ async function connect() {
 }
 
 function onWsOpen() {
-  console.log("[AVA] WebSocket open -> sending session.update");   // DEBUG
+  dbg("WebSocket open → sending session.update");
   // Configure the session immediately; don't wait for session.ready.
   ws.send(JSON.stringify({
     type: "session.update",
@@ -743,7 +778,7 @@ async function onWsMessage(evt) {
   let msg;
   try { msg = JSON.parse(evt.data); } catch (e) { return; }
 
-  console.log("[AVA] event:", msg.type, msg);   // DEBUG: every server event
+  dbg("event ← " + msg.type);
 
   switch (msg.type) {
     case "session.ready":
@@ -753,8 +788,7 @@ async function onWsMessage(evt) {
       setStatus("Live — go ahead", "live");
       connectBtn.disabled = false;
       connectBtn.textContent = "Start call";
-      try { await startMic(); console.log("[AVA] mic started -> streaming audio"); }
-      catch (err) { console.error("[AVA] mic error:", err); showError("Microphone error: " + err.message); setStatus("No mic", "err"); }
+      dbg("session.ready ✓ — mic is live, start talking!");
       break;
 
     case "input.speech.started":
@@ -803,11 +837,13 @@ async function onWsMessage(evt) {
       break;
 
     case "session.error":
+      dbg("session.error: " + JSON.stringify(msg));
       showError("Session error: " + (msg.message || msg.code || "unknown"));
       setStatus("Error", "err");
       break;
 
     default:
+      dbg("   (unhandled event type: " + msg.type + ")");
       break;
   }
 }
@@ -833,7 +869,7 @@ async function handleToolCall(msg) {
 }
 
 function onWsClose(evt) {
-  console.log("[AVA] WebSocket closed. code:", evt && evt.code, "reason:", evt && evt.reason);   // DEBUG
+  dbg("WebSocket closed. code=" + (evt && evt.code) + " reason=" + ((evt && evt.reason) || "(none)"));
   sessionReady = false;
   setLiveUI(false);
   connectBtn.disabled = false;
@@ -920,4 +956,16 @@ function renderTool(text) {
  * ==========================================================================*/
 connectBtn.addEventListener("click", connect);
 disconnectBtn.addEventListener("click", disconnect);
+
+// Copy button: grab the whole diagnostics log so you can paste it to share.
+const copyBtn = $("copyDiag");
+if (copyBtn) {
+  copyBtn.addEventListener("click", async () => {
+    const text = $("diaglog").textContent || "";
+    try { await navigator.clipboard.writeText(text); copyBtn.textContent = "Copied!"; }
+    catch (e) { copyBtn.textContent = "Select + ⌘C"; }
+    setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+  });
+}
+
 setStatus("Ready", "");
