@@ -1,0 +1,4 @@
+# Skyline Car Rental — Ava voice agent (Python + FastAPI backend)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+openpyxl>=3.1

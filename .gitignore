@@ -1,0 +1,12 @@
+# Runtime data (the Excel workbook is created on first run)
+data/
+*.xlsx
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
