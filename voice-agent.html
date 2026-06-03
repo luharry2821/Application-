@@ -217,6 +217,16 @@ const TOKEN_URL = "https://agents.assemblyai.com/v1/token";
 
 const SAMPLE_RATE = 24000;            // PCM16 mono 24 kHz, per Voice Agent API
 const FRAME_SAMPLES = 1200;           // ~50 ms per outgoing audio chunk
+
+// Speech-in language is auto-detected: the Voice Agent API runs on
+// Universal-3 Pro Streaming, which code-switches across en/es/fr/de/it/pt with
+// NO parameter (there is no language_detection knob on this API). The system
+// prompt tells the agent to reply in whatever language it hears.
+// For speech-OUT in another language, pick a multilingual voice below — note
+// each multilingual voice covers ONE language + English, so a single session
+// can't speak all six. `ivy` (default) is English-only:
+//   lucia/mateo (es), pierre (fr), lukas/lena (de), giulia/luca (it),
+//   diego (Latin-American es), arjun (hi), and more — see docs.
 const AGENT_VOICE = "ivy";            // valid voice id (see docs); default ivy
 
 /* ============================================================================
@@ -618,11 +628,13 @@ function onWsOpen() {
     session: {
       system_prompt:
         "You are Vinyl Concierge, a warm, knowledgeable host at a record " +
-        "shop. Keep replies short and spoken-friendly. When the customer " +
-        "describes a mood, genre, artist, or title, call the search_shelf " +
-        "tool, then recommend ONE record from the results by artist and " +
-        "title and say why it fits. If nothing matches, say so and ask a " +
-        "quick follow-up. Never read out raw data or JSON.",
+        "shop. Keep replies short and spoken-friendly. Detect the language " +
+        "the customer is speaking (English, Spanish, French, German, " +
+        "Italian, or Portuguese) and ALWAYS reply in that same language. " +
+        "When the customer describes a mood, genre, artist, or title, call " +
+        "the search_shelf tool, then recommend ONE record from the results " +
+        "by artist and title and say why it fits. If nothing matches, say " +
+        "so and ask a quick follow-up. Never read out raw data or JSON.",
       greeting:
         "Welcome to the shop! Tell me a mood, a genre, or an artist, and " +
         "I'll find you the perfect record.",
