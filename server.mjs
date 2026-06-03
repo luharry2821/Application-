@@ -73,7 +73,7 @@ const server = createServer(async (req, res) => {
     return;
   }
   let pathname = decodeURIComponent(url.pathname);
-  if (pathname === "/") pathname = "/voice-agent.html";
+  if (pathname === "/") pathname = "/index.html";
   const filePath = normalize(join(ROOT, pathname));
   if (filePath !== ROOT && !filePath.startsWith(ROOT + sep)) {
     res.writeHead(403).end("Forbidden");
@@ -93,5 +93,5 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Vinyl Concierge running:  http://localhost:${PORT}`);
   console.log(`Token endpoint:           http://localhost:${PORT}/token`);
-  console.log(`Set AUTH_MODE = "proxy" in voice-agent.html.`);
+  console.log(`Set AUTH_MODE = "proxy" in index.html.`);
 });
