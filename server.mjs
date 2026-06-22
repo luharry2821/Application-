@@ -23,6 +23,7 @@ const TOKEN_URL = "https://agents.assemblyai.com/v1/token";
 const TOKEN_TTL_SECONDS = 600; // 1–600
 
 const ROOT = process.cwd();
+const STATIC_DIR = join(ROOT, "public"); // matches Vercel's static layout
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -74,8 +75,8 @@ const server = createServer(async (req, res) => {
   }
   let pathname = decodeURIComponent(url.pathname);
   if (pathname === "/") pathname = "/index.html";
-  const filePath = normalize(join(ROOT, pathname));
-  if (filePath !== ROOT && !filePath.startsWith(ROOT + sep)) {
+  const filePath = normalize(join(STATIC_DIR, pathname));
+  if (filePath !== STATIC_DIR && !filePath.startsWith(STATIC_DIR + sep)) {
     res.writeHead(403).end("Forbidden");
     return;
   }
