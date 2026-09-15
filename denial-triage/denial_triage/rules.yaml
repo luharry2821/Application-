@@ -1,0 +1,424 @@
+# Denial triage rules — ALL domain knowledge lives here, not in code.
+# A non-engineer can add a CARC rule, a CPT, or a bundling relationship by
+# editing this file. The engine (engine.py) only interprets these records.
+
+meta:
+  payer: "Blue Cross Blue Shield of Michigan, commercial"
+  customer: "Michigan hospital system — radiology"
+
+# ---------------------------------------------------------------------------
+# Field mapping: workbook column header -> canonical field name.
+# Confirm/correct these headers here; the loader reads nothing else.
+# ---------------------------------------------------------------------------
+field_map:
+  line_detail_sheet: "Line Detail"
+  columns:
+    claim:            "Claim number"
+    month:            "Service month"
+    rate_phase:       "Rate phase"
+    cpt:              "CPT/HCPCS"
+    modifier:         "Modifier"
+    revenue_code:     "Revenue code"
+    units:            "Units"
+    billed:           "Billed"
+    allowed:          "Allowed"
+    paid:             "Paid"
+    expected_pct:     "Expected %"
+    expected_allowed: "Expected allowed"
+    variance:         "Gross variance"
+    line_status:      "Line status"
+    carc:             "CARC code(s)"
+    carc_amounts:     "CARC adjustment amount(s)"
+    carc_desc:        "CARC description(s)"
+    rarc:             "RARC code(s)"
+    rarc_desc:        "RARC description(s)"
+    control:          "Same-claim rate control"
+    control_count:    "Control line count"
+    control_pct:      "Control realized %"
+    control_basis:    "Other allowed on claim"   # proxy for control-line dollars; see thresholds note
+    claim_charge:     "Claim total charge"
+    claim_allowed:    "Claim total allowed"
+    claim_paid:       "Claim total paid"
+    prior_cause:      "Prior likely cause"
+    remit_type:       "Remit transaction type"
+    payer_validation: "Payer validation"
+
+# ---------------------------------------------------------------------------
+# Contract rates. The pre-April figure is an ASSUMPTION (inferred), so any
+# finding that depends on it is downgraded to hypothesis by the engine.
+# ---------------------------------------------------------------------------
+rates:
+  - {effective_from: "2026-04", pct: 42.54, verified: true,
+     source: "contracted rate for DOS on/after 2026-04-01 (per engagement brief)"}
+  - {effective_from: "0000-00", pct: 41.25, verified: false,
+     source: "inferred from adjudicated claims — assumption, not a published contract term"}
+
+thresholds:
+  # control realized % may deviate from expected by at most this (percentage points)
+  control_deviation_pp: 0.01
+  # control lines whose dollar basis is below this make the realized % rounding
+  # noise -> warning. NOTE: the workbook carries 'Other allowed on claim', not
+  # per-control-line billed; that proxy is what gets tested.
+  control_trivial_dollars: 100.00
+  # CO-45 paid-line test: allowed within this many percentage points of the
+  # contract rate is the normal contractual write-off, not a finding
+  at_rate_tolerance_pp: 0.05
+
+# ---------------------------------------------------------------------------
+# PHI guard: input is rejected if any column header matches, or any cell
+# contains an exact calendar date. Service month, claim number, codes and
+# amounts are acceptable.
+# ---------------------------------------------------------------------------
+phi:
+  forbidden_header_patterns:
+    - "patient.*name"
+    - "member.*(id|number)"
+    - "\\bmrn\\b"
+    - "medical record"
+    - "date of birth"
+    - "\\bdob\\b"
+    - "\\bssn\\b"
+    - "subscriber"
+    - "date of service"
+    - "\\bdos\\b"
+  forbidden_value_patterns:      # exact dates of service anywhere in a cell
+    - "\\b\\d{4}-\\d{2}-\\d{2}\\b"
+    - "\\b\\d{1,2}/\\d{1,2}/\\d{4}\\b"
+
+# ---------------------------------------------------------------------------
+# CARC group semantics. payer_recovery: whether dollars under this group may
+# ever enter a payer-recovery figure. PR never does.
+# ---------------------------------------------------------------------------
+carc_groups:
+  CO: {name: "contractual obligation", payer_recovery: true}
+  PI: {name: "payer-initiated reduction", payer_recovery: true}
+  OA: {name: "other adjustment (often COB)", payer_recovery: conditional}
+  PR: {name: "patient responsibility", payer_recovery: false}
+
+# ---------------------------------------------------------------------------
+# Confidence bands — directional judgment derived from general denial
+# patterns, NOT measured payer overturn rates.
+# ---------------------------------------------------------------------------
+confidence_bands:
+  high:    {p_low: 0.55, p_high: 0.80}
+  medium:  {p_low: 0.30, p_high: 0.55}
+  low:     {p_low: 0.10, p_high: 0.30}
+  minimal: {p_low: 0.00, p_high: 0.10}
+
+verdicts:
+  - appealable denial
+  - corrected-claim opportunity
+  - contractual carve-out
+  - patient or COB issue
+  - valid denial
+  - unresolved
+
+# Which verdicts may contribute probability-weighted expected recovery.
+recovery_verdicts:
+  - appealable denial
+  - corrected-claim opportunity
+  - contractual carve-out
+
+# ---------------------------------------------------------------------------
+# Primary CARC rules, evaluated in order; first match sets the base verdict.
+# match keys: carc (exact code), carc_prefix, rarc, groups_all (every CARC in
+# this group), groups_any, allowed (zero | below_rate | at_rate | any),
+# line_status. Omitted keys match anything.
+#
+# suppress: true  -> line produces no finding (e.g. CO-45 at rate)
+# same_day_required: true -> without a same-day extract the engine forces
+#   verdict=unresolved, label=hypothesis, and emits needs.
+# ---------------------------------------------------------------------------
+carc_rules:
+
+  - id: pr-only-patient-liability
+    match: {groups_all: PR}
+    verdict: "patient or COB issue"
+    band: minimal
+    label: verified
+    action_owner: "patient financial services"
+    grounds:
+      - "Every adjustment on the line is group PR (patient responsibility). PR dollars are never a payer recovery."
+    needs: ["Benefit/eligibility verification if the PR determination looks wrong"]
+
+  - id: oa-23-prior-payer
+    match: {carc: "OA-23"}
+    verdict: "patient or COB issue"
+    band: minimal
+    label: verified
+    action_owner: "COB/billing"
+    grounds:
+      - "OA-23: impact of prior payer adjudication. Verify COB math against the primary payer 835 before treating any dollars as recoverable."
+    needs: ["Primary payer 835 for the same claim"]
+
+  - id: co-45-at-contract-rate
+    match: {carc: "CO-45", allowed: at_rate}
+    suppress: true
+    note: "CO-45 on a line allowed at the contract rate is the normal contractual write-off, not a denial."
+
+  - id: co-45-below-contract-rate
+    match: {carc: "CO-45", allowed: below_rate}
+    verdict: "appealable denial"
+    band: high
+    label: verified
+    action_owner: "payer disputes"
+    grounds:
+      - "CO-45 taken beyond the contractual write-off: allowed fell below the contract rate. The delta between contract-rate allowed and actual allowed is a payer underpayment, not a write-off."
+    needs: ["Contract exhibit showing the percentage-of-charge term for this service category"]
+
+  - id: co-97-n19-bundling
+    match: {carc: "CO-97", rarc: "N19"}
+    same_day_required: true
+    hypothesis_verdict: unresolved
+    hypothesis_band: medium
+    territory_test: true
+    action_owner: "coding/appeals (per test outcome)"
+    hypothesis_grounds:
+      - "CO-97/N19 bundling verdict depends entirely on what else was billed the same date. The workbook holds only radiology candidate lines and cannot answer this."
+    needs:
+      - "Full same-day service line list for the claim (all departments, not only radiology)"
+      - "NCCI PTP edit pair lookup for the denied CPT against each same-day procedure (source: CMS NCCI PTP tables, current quarter)"
+
+  - id: co-231-n20-mutually-exclusive
+    match: {carc: "CO-231", rarc: "N20"}
+    same_day_required: true
+    hypothesis_verdict: unresolved
+    hypothesis_band: medium
+    territory_test: true
+    action_owner: "coding/appeals (per test outcome)"
+    hypothesis_grounds:
+      - "CO-231/N20 (mutually exclusive same day/setting) requires the full same-day line list; the workbook alone cannot resolve which procedure the payer paired against this one."
+    needs:
+      - "Full same-day service line list for the claim"
+      - "NCCI PTP / mutually-exclusive edit lookup for the code pair (source: CMS NCCI PTP tables)"
+
+  - id: co-97-generic-bundling
+    match: {carc: "CO-97"}
+    same_day_required: true
+    hypothesis_verdict: unresolved
+    hypothesis_band: medium
+    territory_test: true
+    action_owner: "coding/appeals (per test outcome)"
+    hypothesis_grounds:
+      - "CO-97 bundling without the full same-day line list yields a hypothesis only."
+    needs: ["Full same-day service line list for the claim"]
+
+  - id: co-16-missing-information
+    match: {carc_prefix: "CO-16"}
+    verdict: "corrected-claim opportunity"
+    band: high
+    label: verified
+    action_owner: "billing (corrected claim)"
+    grounds:
+      - "CO-16: claim/line lacks required information. The RARC names the missing element; this is a resubmission, not an appeal."
+    needs: ["The specific element named by the RARC on the remit"]
+
+  - id: co-11-dx-procedure-mismatch
+    match: {carc: "CO-11"}
+    verdict: "corrected-claim opportunity"
+    band: medium
+    label: verified
+    action_owner: "coding (corrected claim)"
+    grounds:
+      - "CO-11: diagnosis inconsistent with procedure. Verify the ICD-10 linkage on the 837; when the clinical record supports a covered indication, the fix is a corrected claim with the right diagnosis pointer — a different action and owner than an appeal."
+    needs: ["837 diagnosis pointers for the line", "Clinical indication from the order"]
+
+  - id: co-197-no-auth
+    match: {carc: "CO-197"}
+    verdict: "appealable denial"
+    band: medium
+    label: verified
+    action_owner: "authorization/appeals"
+    grounds:
+      - "CO-197: precertification/authorization absent on the claim. If an authorization exists, appeal with the auth number; otherwise pursue retro-authorization per plan policy."
+    needs: ["Authorization record for the study", "Plan retro-auth policy"]
+
+  - id: co-252-documentation-requested
+    match: {carc: "CO-252"}
+    verdict: "corrected-claim opportunity"
+    band: high
+    label: verified
+    action_owner: "HIM/billing"
+    grounds:
+      - "CO-252: an attachment/documentation was requested. Supply it; this is fulfillment, not argument."
+    needs: ["The requested documentation identified on the remit"]
+
+  - id: co-150-level-of-service
+    match: {carc: "CO-150"}
+    verdict: "appealable denial"
+    band: medium
+    label: verified
+    action_owner: "clinical appeals"
+    grounds:
+      - "CO-150: payer deems level of service unsupported. Appeal with clinical documentation of medical necessity."
+    needs: ["Medical record for the encounter"]
+
+  - id: co-119-benefit-max
+    match: {carc: "CO-119"}
+    verdict: "patient or COB issue"
+    band: low
+    label: verified
+    action_owner: "billing"
+    grounds:
+      - "CO-119: benefit maximum reached. Verify the accumulator; appeal only if the maximum was misapplied."
+    needs: ["Member accumulator snapshot for the benefit period"]
+
+  - id: co-273-frequency
+    match: {carc: "CO-273"}
+    verdict: "appealable denial"
+    band: medium
+    label: verified
+    action_owner: "clinical appeals"
+    grounds:
+      - "CO-273: coverage guideline/frequency exceeded. Verify service history; if within limits, appeal with the history; else medical-necessity appeal."
+    needs: ["Prior service history for the same CPT family"]
+
+  - id: co-204-not-covered-benefit
+    match: {carc: "CO-204"}
+    verdict: "valid denial"
+    band: low
+    label: verified
+    action_owner: "billing"
+    grounds:
+      - "CO-204: service not covered under the benefit. Recovery requires showing the benefit does cover it — verify plan provisions before spending appeal effort."
+    needs: ["Plan benefit language for the service category"]
+
+  - id: co-222-provider-max
+    match: {carc: "CO-222"}
+    verdict: "valid denial"
+    band: low
+    label: verified
+    action_owner: "contracting"
+    grounds:
+      - "CO-222: exceeds contracted maximum for the provider. A contract-terms question, not a claim appeal."
+    needs: ["Contract utilization terms"]
+
+  - id: oa-70-cost-outlier
+    match: {carc: "OA-70"}
+    verdict: unresolved
+    band: medium
+    label: hypothesis
+    action_owner: "revenue integrity"
+    grounds:
+      - "OA-70 (cost outlier) on a zero-allowed radiology line is an anomaly flagged by this review. Resolve remit lineage (which 837 the 835 answers) before using the commercial rate or appealing."
+    needs: ["Second 835 if the remit is a correction pair", "837/835 lineage confirmation"]
+
+  - id: pr-mixed-with-recoverable
+    match: {groups_any: PR}
+    verdict: unresolved
+    band: low
+    label: hypothesis
+    action_owner: "triage"
+    grounds:
+      - "Line carries PR alongside other groups; split the dollars by group before classifying. Only non-PR components may be payer-recovery candidates."
+    needs: ["Per-CARC adjustment amounts for the line"]
+
+  - id: default-unreviewed
+    match: {}
+    verdict: unresolved
+    band: low
+    label: hypothesis
+    action_owner: "triage"
+    grounds:
+      - "No rule matched this CARC/RARC combination. Add a rule to rules.yaml."
+    needs: ["Manual review of the remit"]
+
+# ---------------------------------------------------------------------------
+# CPT metadata for the territory & laterality test and for clustering
+# families. modality: diagnostic | intervention | screening.
+# laterality: none | unilateral | bilateral | per_side.
+# Ranges allowed as "low-high" keys.
+# ---------------------------------------------------------------------------
+cpt_meta:
+  "71045": {family: "chest radiograph", territory: chest, modality: diagnostic, laterality: none}
+  "71046": {family: "chest radiograph", territory: chest, modality: diagnostic, laterality: none}
+  "70450": {family: "CT head", territory: head, modality: diagnostic, laterality: none}
+  "70551-70553": {family: "MRI brain", territory: head, modality: diagnostic, laterality: none}
+  "72131": {family: "CT lumbar spine", territory: spine, modality: diagnostic, laterality: none}
+  "74177": {family: "CT abdomen/pelvis", territory: abdomen_pelvis, modality: diagnostic, laterality: none}
+  "76705": {family: "US abdomen limited", territory: abdomen_pelvis, modality: diagnostic, laterality: none}
+  "76801": {family: "OB ultrasound", territory: obstetric, modality: diagnostic, laterality: none}
+  "76805": {family: "OB ultrasound", territory: obstetric, modality: diagnostic, laterality: none}
+  "77063": {family: "screening mammography", territory: breast, modality: screening, laterality: bilateral}
+  "77067": {family: "screening mammography", territory: breast, modality: screening, laterality: bilateral}
+  "77080": {family: "DXA", territory: skeletal, modality: diagnostic, laterality: none}
+  "75710": {family: "extremity angiography", territory: lower_extremity, modality: diagnostic, laterality: unilateral}
+  "75716": {family: "extremity angiography", territory: lower_extremity, modality: diagnostic, laterality: bilateral}
+  "36221-36228": {family: "cervicocerebral angiography", territory: head_neck, modality: diagnostic, laterality: per_side}
+  "37220-37235": {family: "lower extremity revascularization (retired)", territory: lower_extremity, modality: intervention, laterality: unilateral}
+  "37254-37299": {family: "lower extremity revascularization", territory: lower_extremity, modality: intervention, laterality: unilateral}
+  "93454-93461": {family: "coronary angiography", territory: coronary, modality: diagnostic, laterality: none}
+  "92920-92944": {family: "coronary intervention", territory: coronary, modality: intervention, laterality: none}
+
+# Code-set churn: retired and newly introduced codes.
+code_set_changes:
+  retired:
+    - {range: "37220-37235", retired_on: "2026-01", replaced_by: "37254-37299",
+       note: "Lower extremity revascularization codes retired 1 Jan 2026."}
+  introduced:
+    - {range: "37254-37299", introduced_on: "2026-01",
+       systemic_note: "Newly introduced codes carry elevated risk of payer edit mapping errors. Surface as a systemic pattern to investigate, not just a line item."}
+
+# ---------------------------------------------------------------------------
+# Territory & laterality test outcomes (used when a same-day extract exists).
+# The engine computes facts; these records supply verdicts/grounds per case.
+# ---------------------------------------------------------------------------
+territory_test:
+  no_intervention_or_primary_found:
+    verdict: unresolved
+    band: medium
+    label: hypothesis
+    grounds:
+      - "Same-day data shows no procedure this line could bundle into; the payer's pairing is unexplained. Request the payer's edit rationale."
+    needs: ["Payer edit rationale / NCCI pair cited on the denial"]
+  territory_mismatch:
+    verdict: "appealable denial"
+    band: high
+    label: verified
+    grounds:
+      - "The denied imaging territory does not match the treated territory. Imaging of the treated territory bundles; imaging outside it generally does not."
+    needs: ["NCCI PTP confirmation that no edit pairs the two codes (source: CMS NCCI PTP tables)"]
+  laterality_partial:
+    verdict: "appealable denial"
+    band: medium
+    label: verified
+    grounds:
+      - "Partial recovery: a unilateral intervention cannot bundle a bilateral diagnostic study in full — the untreated side remains separately reportable."
+    warnings:
+      - "Overcoding risk: billing a bilateral code without documentation of bilateral imaging is itself an error; if only one side was imaged, the unilateral code is correct and the fix is a corrected claim, not an appeal."
+    needs: ["Imaging report confirming both sides were studied"]
+  full_match_no_modifier:
+    verdict: "corrected-claim opportunity"
+    band: low
+    label: verified
+    grounds:
+      - "Territory and laterality match the same-day procedure and no distinct-service modifier was billed. Absence of the modifier is a corrected-claim signal, not an appeal signal: if the study was distinct and documented, rebill with 59/XU-family modifier; otherwise the bundle stands."
+    needs:
+      - "Documentation that the study was a distinct service (separate session/encounter)"
+  full_match_with_modifier:
+    verdict: "appealable denial"
+    band: medium
+    label: verified
+    grounds:
+      - "A distinct-service modifier was billed and the payer bundled anyway; appeal on the modifier with supporting documentation."
+    needs: ["Documentation supporting the modifier"]
+  consistency_ground:
+    ground: "Another diagnostic imaging line on the same claim was paid while this one was denied: the payer is applying a territory test and can be held to it consistently."
+
+# Diagnostic angiography beside an intervention: these are EVIDENCE
+# REQUIREMENTS, never conclusions — each needs medical-record confirmation.
+angiography_separate_criteria:
+  applies_to_families: ["extremity angiography", "cervicocerebral angiography", "coronary angiography"]
+  criteria:
+    - "No prior adequate catheter study exists and the decision to intervene was based on the current study"
+    - "The patient's condition changed since prior imaging"
+    - "Prior imaging was inadequate"
+    - "New findings emerged outside the target area"
+
+# ---------------------------------------------------------------------------
+# Clustering: identical billed amounts across claims for the same
+# CARC+RARC+CPT family indicate one chargemaster item denied repeatedly.
+# ---------------------------------------------------------------------------
+clustering:
+  keys: [carc, rarc, cpt_family, billed]
+  systemic_min_size: 2
